@@ -8,6 +8,7 @@ import (
 
 	"github.com/Sabirk8992/ecom-backend/internal/config"
 	"github.com/Sabirk8992/ecom-backend/internal/handler"
+	"github.com/Sabirk8992/ecom-backend/internal/middleware"
 	"github.com/Sabirk8992/ecom-backend/internal/service"
 )
 
@@ -17,6 +18,9 @@ func Run(cfg *config.Config, db *sql.DB) {
 
 	productSvc := service.NewProductService(db)
 	productHandler := handler.NewProductHandler(productSvc)
+
+	orderSvc := service.NewOrderService(db)
+	orderHandler := handler.NewOrderHandler(orderSvc)
 
 	mux := http.NewServeMux()
 
@@ -38,7 +42,6 @@ func Run(cfg *config.Config, db *sql.DB) {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
-
 	mux.HandleFunc("/products/", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -47,6 +50,26 @@ func Run(cfg *config.Config, db *sql.DB) {
 			productHandler.Update(w, r)
 		case http.MethodDelete:
 			productHandler.Delete(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	// orders (protected)
+	mux.HandleFunc("/orders", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			middleware.AuthMiddleware(cfg.JWTSecret, orderHandler.Create)(w, r)
+		case http.MethodGet:
+			middleware.AuthMiddleware(cfg.JWTSecret, orderHandler.GetAll)(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc("/orders/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			middleware.AuthMiddleware(cfg.JWTSecret, orderHandler.GetByID)(w, r)
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
