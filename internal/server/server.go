@@ -22,6 +22,9 @@ func Run(cfg *config.Config, db *sql.DB) {
 	orderSvc := service.NewOrderService(db)
 	orderHandler := handler.NewOrderHandler(orderSvc)
 
+	paymentSvc := service.NewPaymentService(db)
+	paymentHandler := handler.NewPaymentHandler(paymentSvc)
+
 	mux := http.NewServeMux()
 
 	// health
@@ -70,6 +73,16 @@ func Run(cfg *config.Config, db *sql.DB) {
 		switch r.Method {
 		case http.MethodGet:
 			middleware.AuthMiddleware(cfg.JWTSecret, orderHandler.GetByID)(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	// payments (protected)
+	mux.HandleFunc("/payments", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			middleware.AuthMiddleware(cfg.JWTSecret, paymentHandler.Process)(w, r)
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
