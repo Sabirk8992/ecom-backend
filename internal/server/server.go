@@ -1,6 +1,7 @@
 package server
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,7 +10,7 @@ import (
 	"github.com/Sabirk8992/ecom-backend/internal/handler"
 )
 
-func Run(cfg *config.Config) {
+func Run(cfg *config.Config, db *sql.DB) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handler.HealthCheck)
 
