@@ -10,6 +10,7 @@ import (
 	"github.com/Sabirk8992/ecom-backend/internal/handler"
 	"github.com/Sabirk8992/ecom-backend/internal/middleware"
 	"github.com/Sabirk8992/ecom-backend/internal/service"
+	"github.com/Sabirk8992/ecom-backend/internal/storage"
 )
 
 func Run(cfg *config.Config, db *sql.DB) {
@@ -24,6 +25,12 @@ func Run(cfg *config.Config, db *sql.DB) {
 
 	paymentSvc := service.NewPaymentService(db)
 	paymentHandler := handler.NewPaymentHandler(paymentSvc)
+
+	s3Storage, err := storage.NewS3Storage(cfg)
+	if err != nil {
+		log.Fatalf("Failed to initialize S3: %v", err)
+	}
+	uploadHandler := handler.NewUploadHandler(s3Storage)
 
 	mux := http.NewServeMux()
 
@@ -83,6 +90,16 @@ func Run(cfg *config.Config, db *sql.DB) {
 		switch r.Method {
 		case http.MethodPost:
 			middleware.AuthMiddleware(cfg.JWTSecret, paymentHandler.Process)(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	// upload (protected)
+	mux.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			middleware.AuthMiddleware(cfg.JWTSecret, uploadHandler.Upload)(w, r)
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}

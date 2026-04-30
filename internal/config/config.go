@@ -16,6 +16,8 @@ type Config struct {
 	DBPass    string
 	DBName    string
 	JWTSecret string
+	AWSRegion string
+	S3Bucket  string
 }
 
 func Load() *Config {
@@ -31,6 +33,8 @@ func Load() *Config {
 		DBPass:    getEnv("DB_PASSWORD", "ecom_pass123"),
 		DBName:    getEnv("DB_NAME", "ecom_db"),
 		JWTSecret: getEnv("JWT_SECRET", "changeme"),
+		AWSRegion: getEnv("AWS_REGION", "ap-south-1"),
+		S3Bucket:  getEnv("S3_BUCKET", ""),
 	}
 }
 
