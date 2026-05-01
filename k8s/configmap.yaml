@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ecom-config
+data:
+  APP_PORT: "8080"
+  APP_ENV: "production"
+  DB_HOST: "ecom-db.cjau6a04idhs.ap-south-1.rds.amazonaws.com"
+  DB_PORT: "5432"
+  DB_NAME: "ecom_db"
+  AWS_REGION: "ap-south-1"
+  S3_BUCKET: "ecom-uploads-sabir-498523528523-ap-south-1-an"

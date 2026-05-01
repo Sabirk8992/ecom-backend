@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ecom-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ecom
+  template:
+    metadata:
+      labels:
+        app: ecom
+    spec:
+      containers:
+        - name: ecom-app
+          image: ecom-backend:v1
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: ecom-config
+            - secretRef:
+                name: ecom-secret
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
