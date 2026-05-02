@@ -3,14 +3,17 @@ package server
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/Sabirk8992/ecom-backend/internal/config"
 	"github.com/Sabirk8992/ecom-backend/internal/handler"
+	"github.com/Sabirk8992/ecom-backend/internal/logger"
+	"github.com/Sabirk8992/ecom-backend/internal/metrics"
 	"github.com/Sabirk8992/ecom-backend/internal/middleware"
 	"github.com/Sabirk8992/ecom-backend/internal/service"
 	"github.com/Sabirk8992/ecom-backend/internal/storage"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.uber.org/zap"
 )
 
 func Run(cfg *config.Config, db *sql.DB) {
@@ -28,21 +31,26 @@ func Run(cfg *config.Config, db *sql.DB) {
 
 	s3Storage, err := storage.NewS3Storage(cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize S3: %v", err)
+		logger.Log.Fatal("Failed to initialize S3", zap.Error(err))
 	}
 	uploadHandler := handler.NewUploadHandler(s3Storage)
 
+	_ = metrics.HttpRequestsTotal
+
 	mux := http.NewServeMux()
 
+	// metrics endpoint for Prometheus to scrape
+	mux.Handle("/metrics", promhttp.Handler())
+
 	// health
-	mux.HandleFunc("/health", handler.HealthCheck)
+	mux.HandleFunc("/health", middleware.Observability(handler.HealthCheck))
 
 	// auth
-	mux.HandleFunc("/auth/signup", authHandler.Signup)
-	mux.HandleFunc("/auth/login", authHandler.Login)
+	mux.HandleFunc("/auth/signup", middleware.Observability(authHandler.Signup))
+	mux.HandleFunc("/auth/login", middleware.Observability(authHandler.Login))
 
 	// products
-	mux.HandleFunc("/products", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/products", middleware.Observability(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			productHandler.GetAll(w, r)
@@ -51,8 +59,8 @@ func Run(cfg *config.Config, db *sql.DB) {
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
-	})
-	mux.HandleFunc("/products/", func(w http.ResponseWriter, r *http.Request) {
+	}))
+	mux.HandleFunc("/products/", middleware.Observability(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			productHandler.GetByID(w, r)
@@ -63,10 +71,10 @@ func Run(cfg *config.Config, db *sql.DB) {
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
-	})
+	}))
 
-	// orders (protected)
-	mux.HandleFunc("/orders", func(w http.ResponseWriter, r *http.Request) {
+	// orders
+	mux.HandleFunc("/orders", middleware.Observability(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
 			middleware.AuthMiddleware(cfg.JWTSecret, orderHandler.Create)(w, r)
@@ -75,40 +83,40 @@ func Run(cfg *config.Config, db *sql.DB) {
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
-	})
-	mux.HandleFunc("/orders/", func(w http.ResponseWriter, r *http.Request) {
+	}))
+	mux.HandleFunc("/orders/", middleware.Observability(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			middleware.AuthMiddleware(cfg.JWTSecret, orderHandler.GetByID)(w, r)
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
-	})
+	}))
 
-	// payments (protected)
-	mux.HandleFunc("/payments", func(w http.ResponseWriter, r *http.Request) {
+	// payments
+	mux.HandleFunc("/payments", middleware.Observability(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
 			middleware.AuthMiddleware(cfg.JWTSecret, paymentHandler.Process)(w, r)
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
-	})
+	}))
 
-	// upload (protected)
-	mux.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
+	// upload
+	mux.HandleFunc("/upload", middleware.Observability(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
 			middleware.AuthMiddleware(cfg.JWTSecret, uploadHandler.Upload)(w, r)
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
-	})
+	}))
 
 	addr := fmt.Sprintf(":%s", cfg.AppPort)
-	log.Printf("Server starting on %s [env=%s]", addr, cfg.AppEnv)
+	logger.Log.Info("Server starting", zap.String("addr", addr), zap.String("env", cfg.AppEnv))
 
 	if err := http.ListenAndServe(addr, mux); err != nil {
-		log.Fatalf("Server failed: %v", err)
+		logger.Log.Fatal("Server failed", zap.Error(err))
 	}
 }
